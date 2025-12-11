@@ -1,0 +1,111 @@
+# STEP 1: Install & Import Libraries
+!pip install kagglehub pandas matplotlib scikit-learn tensorflow --quiet
+
+import kagglehub
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+import seaborn as sns
+from tensorflow.keras import layers, models
+
+
+# STEP 2: Download Diabetes Dataset from Kaggle
+# Using: "uciml/pima-indians-diabetes-database"
+path = kagglehub.dataset_download("uciml/pima-indians-diabetes-database")
+print("✅ Dataset downloaded at:", path)
+
+
+# STEP 3: Load Dataset
+csv_path = os.path.join(path, "diabetes.csv")
+df = pd.read_csv(csv_path)
+
+print("\n=== Dataset Preview ===")
+print(df.head())
+
+
+# STEP 4: Check and Preprocess Data
+print("\nColumns:\n", df.columns)
+print("\nMissing values:\n", df.isnull().sum())
+
+# Replace 0 values in some medical fields (which can't be zero)
+cols_with_zero = ['Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI']
+for col in cols_with_zero:
+    df[col] = df[col].replace(0, np.nan)
+    df[col].fillna(df[col].median(), inplace=True)
+
+
+# Separate features and target
+X = df.drop(columns=['Outcome']).values
+y = df['Outcome'].values
+
+# Train-Test Split
+Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+# Feature Scaling
+sc = StandardScaler()
+Xtr = sc.fit_transform(Xtr)
+Xte = sc.transform(Xte)
+
+
+# STEP 5: Define Neural Network Model
+model = models.Sequential([
+    layers.Input(shape=(Xtr.shape[1],)),
+    layers.Dense(32, activation='relu'),
+    layers.Dense(16, activation='relu'),
+    layers.Dense(1, activation='sigmoid')
+])
+
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+model.summary()
+
+
+# STEP 6: Train Model
+history = model.fit(Xtr, ytr, epochs=30, batch_size=32, validation_split=0.2, verbose=0)
+
+
+# STEP 7: Evaluate on Test Set
+probs = model.predict(Xte, verbose=0).ravel()
+preds = (probs > 0.5).astype(int)
+
+test_acc = accuracy_score(yte, preds)
+print(f"\n✅ FINAL TEST ACCURACY: {test_acc:.4f}")
+
+print("\nClassification Report:\n", classification_report(yte, preds, digits=4))
+
+
+# STEP 8: Confusion Matrix
+cm = confusion_matrix(yte, preds)
+
+plt.figure(figsize=(5,4))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+plt.title('Confusion Matrix — Diabetes Detection')
+plt.xlabel('Predicted')
+plt.ylabel('True')
+plt.tight_layout()
+plt.show()
+
+
+# STEP 9: Accuracy & Loss Graphs
+plt.figure()
+plt.plot(history.history['accuracy'], label='Train Acc')
+plt.plot(history.history['val_accuracy'], label='Val Acc')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.title('Training vs Validation Accuracy')
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+plt.figure()
+plt.plot(history.history['loss'], label='Train Loss')
+plt.plot(history.history['val_loss'], label='Val Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.title('Training vs Validation Loss')
+plt.legend()
+plt.tight_layout()
+plt.show()
